@@ -57,17 +57,6 @@ const PaneSystem = ({
     [setRowHeightPxs, rowHeights],
   );
 
-  const onRowHeightChange = useCallback(
-    (index: number, height: number) => {
-      setRowHeightPxs((prev) => {
-        const clone = [...prev];
-        clone[index] = height;
-        return clone;
-      });
-    },
-    [setRowHeightPxs],
-  );
-
   // Calculate the container height.
   useEffect(() => {
     if (!ref.current) return;
@@ -123,7 +112,6 @@ const PaneSystem = ({
         index,
         top,
         height: rowHeightPxs[index],
-        onHeightChange: onRowHeightChange,
         containerWidth: containerSize.width,
         onSplitterDrag: onRowSplitterDrag(index),
       });
@@ -132,13 +120,7 @@ const PaneSystem = ({
 
       return r;
     });
-  }, [
-    children,
-    rowHeightPxs,
-    onRowHeightChange,
-    containerSize,
-    onRowSplitterDrag,
-  ]);
+  }, [children, rowHeightPxs, containerSize, onRowSplitterDrag]);
 
   return (
     <div ref={ref} className="relative h-full" style={{ height }}>

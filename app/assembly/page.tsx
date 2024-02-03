@@ -5,7 +5,10 @@ import PaneSystem from '@/components/pane-system/PaneSystem';
 const AssemblyPage = () => {
   return (
     <PaneSystem rowHeights={['100%']} height="calc(100vh - 56px)">
-      <PaneRow columnWidths={['300px', 'auto', '250px']}>
+      <PaneRow
+        columnWidths={['300px', 'auto', '250px']}
+        columnMaxWidths={['50%', 'auto', '50%']}
+      >
         <Pane id="left-pane" splitter="right">
           <h1>Left Pane</h1>
         </Pane>

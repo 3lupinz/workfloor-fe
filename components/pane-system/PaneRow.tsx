@@ -14,19 +14,21 @@ import {
 import { PaneProps } from './Pane';
 import { sizeToPixels } from '@/utils/conversion';
 import RowSplitter from './RowSplitter';
+import { limit } from '@/utils/number';
 
 export interface PaneRowProps {
   index?: number;
   containerWidth?: number;
   top?: number;
   height?: number;
-  onHeightChange?: (index: number, height: number) => void;
   columnWidths: string[];
   onColumnWidthChange?: (
     rowIndex: number,
     colIndex: number,
     width: number,
   ) => void;
+  columnMinWidths?: string[];
+  columnMaxWidths?: string[];
   splitter?: 'top' | 'bottom';
   onSplitterDrag?: (dy: number) => void;
 }
@@ -35,19 +37,24 @@ const PaneRow = ({
   containerWidth = 0,
   top = 0,
   height = 0,
-  onHeightChange,
   columnWidths,
+  columnMinWidths,
+  columnMaxWidths,
   splitter,
   onSplitterDrag,
   children,
 }: PropsWithChildren<PaneRowProps>) => {
   const [columnWidthPxs, setColumnWidthPxs] = useState<number[]>([]);
 
+  // The number of given Pane components in this row.
+  const numberOfColumns = Children.count(children);
+
   const onColumnSplitterDrag = useCallback(
     (index: number) => (dx: number) => {
       const autoColumnIndex = columnWidths.findIndex((w) => w === 'auto');
 
       if (autoColumnIndex === index - 1) {
+        // The splitter is on the right side of the auto column.
         setColumnWidthPxs((prev) => {
           const clone = [...prev];
           clone[index - 1] += dx;
@@ -55,6 +62,7 @@ const PaneRow = ({
           return clone;
         });
       } else if (autoColumnIndex === index + 1) {
+        // The splitter is on the left side of the auto column.
         setColumnWidthPxs((prev) => {
           const clone = [...prev];
           clone[index] += dx;
@@ -65,6 +73,28 @@ const PaneRow = ({
     },
     [columnWidths],
   );
+
+  // Calculate the column min widths in pixels.
+  const columnMinWidthPxs = useMemo<number[]>(() => {
+    if (!columnMinWidths) return Array(numberOfColumns).fill(0);
+    if (columnMinWidths.length !== numberOfColumns)
+      throw new Error(
+        'The number of columnMinWidths must match the number of columns.',
+      );
+
+    return columnMinWidths.map(sizeToPixels, containerWidth);
+  }, [columnMinWidths, containerWidth, numberOfColumns]);
+
+  // Calculate the column max widths in pixels.
+  const columnMaxWidthPxs = useMemo<number[]>(() => {
+    if (!columnMaxWidths) return Array(numberOfColumns).fill('100%');
+    if (columnMaxWidths.length !== numberOfColumns)
+      throw new Error(
+        'The number of columnMaxWidths must match the number of columns.',
+      );
+
+    return columnMaxWidths.map(sizeToPixels, containerWidth);
+  }, [columnMaxWidths, containerWidth, numberOfColumns]);
 
   // Calculate the column widths in pixels.
   useEffect(() => {
@@ -77,7 +107,10 @@ const PaneRow = ({
       throw new Error('Only one column can have auto width');
     }
 
-    const nonAutoWidthPxs = nonAutoWidths.map(sizeToPixels, containerWidth);
+    const nonAutoWidthPxs = nonAutoWidths
+      .map(sizeToPixels, containerWidth)
+      .map((n, i) => limit(n, columnMinWidthPxs[i], columnMaxWidthPxs[i]));
+
     const autoWidthPx =
       containerWidth - nonAutoWidthPxs.reduce((a, b) => a + b);
     const autoWidthIndex = columnWidths.findIndex((w) => w === 'auto');
@@ -86,7 +119,7 @@ const PaneRow = ({
       nonAutoWidthPxs.splice(autoWidthIndex, 0, autoWidthPx);
 
     setColumnWidthPxs(nonAutoWidthPxs);
-  }, [columnWidths, containerWidth]);
+  }, [columnWidths, containerWidth, columnMinWidthPxs, columnMaxWidthPxs]);
 
   const cols = useMemo(() => {
     if (columnWidthPxs.length === 0) return null;
