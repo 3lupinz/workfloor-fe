@@ -1,31 +1,38 @@
 import Pane from '@/components/pane-system/Pane';
 import PaneRow from '@/components/pane-system/PaneRow';
+
 import PaneSystem from '@/components/pane-system/PaneSystem';
 
 const AssemblyPage = () => {
   return (
-    <PaneSystem rowHeights={['100%']} height="calc(100vh - 56px)">
-      <PaneRow
-        columnWidths={['300px', 'auto', '250px']}
-        columnMaxWidths={['50%', 'auto', '50%']}
-      >
-        <Pane id="left-pane" splitter="right">
+    <PaneSystem height="calc(100vh - 56px)">
+      <PaneRow height="100%">
+        <Pane
+          id="left-pane"
+          width="300px"
+          minWidth="200px"
+          maxWidth="50%"
+          splitter="right"
+        >
           <h1>Left Pane</h1>
         </Pane>
         <Pane id="center-pane">
           <h1>Center Pane</h1>
         </Pane>
-        <Pane id="right-pane" splitter="left">
-          <PaneSystem
-            rowHeights={['300px', 'auto']}
-            height="calc(100vh - 56px)"
-          >
-            <PaneRow columnWidths={['100%']} splitter="bottom">
+        <Pane
+          id="right-pane"
+          width="250px"
+          minWidth="250px"
+          maxWidth="50%"
+          splitter="left"
+        >
+          <PaneSystem height="100%">
+            <PaneRow height="300px" minHeight="200px" splitter="bottom">
               <Pane id="right-upper-pane">
                 <h1>Right Upper Pane</h1>
               </Pane>
             </PaneRow>
-            <PaneRow columnWidths={['100%']}>
+            <PaneRow>
               <Pane id="right-lower-pane">
                 <h1>Right Lower Pane</h1>
               </Pane>

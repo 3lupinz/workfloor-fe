@@ -4,24 +4,33 @@ import {
   Children,
   PropsWithChildren,
   ReactElement,
-  cloneElement,
-  isValidElement,
+  createElement,
   useCallback,
   useEffect,
   useMemo,
   useState,
 } from 'react';
-import { PaneProps } from './Pane';
+import { InnerPane, PaneProps } from './Pane';
 import { sizeToPixels } from '@/utils/conversion';
 import RowSplitter from './RowSplitter';
 import { limit } from '@/utils/number';
 
-export interface PaneRowProps {
+export interface PaneRowProps extends PropsWithChildren {
+  height?: string;
+  minHeight?: string;
+  maxHeight?: string;
+  splitter?: 'top' | 'bottom';
+}
+
+const PaneRow = ({ children }: PaneRowProps) => children;
+
+export default PaneRow;
+
+export interface InnerPaneRowProps {
   index?: number;
-  containerWidth?: number;
+  containerWidth: number;
   top?: number;
   height?: number;
-  columnWidths: string[];
   onColumnWidthChange?: (
     rowIndex: number,
     colIndex: number,
@@ -33,116 +42,138 @@ export interface PaneRowProps {
   onSplitterDrag?: (dy: number) => void;
 }
 
-const PaneRow = ({
-  containerWidth = 0,
-  top = 0,
-  height = 0,
-  columnWidths,
-  columnMinWidths,
-  columnMaxWidths,
+export const InnerPaneRow = ({
+  containerWidth,
+  top,
+  height,
   splitter,
   onSplitterDrag,
   children,
-}: PropsWithChildren<PaneRowProps>) => {
-  const [columnWidthPxs, setColumnWidthPxs] = useState<number[]>([]);
+}: PropsWithChildren<InnerPaneRowProps>) => {
+  // The widths of the Pane components in pixels.
+  const [paneWidthPxs, setPaneWidthPxs] = useState<number[]>([]);
 
-  // The number of given Pane components in this row.
-  const numberOfColumns = Children.count(children);
+  // Gather Pane components in this row.
+  const panes = useMemo(() => {
+    const array = Children.toArray(children);
 
-  const onColumnSplitterDrag = useCallback(
-    (index: number) => (dx: number) => {
-      const autoColumnIndex = columnWidths.findIndex((w) => w === 'auto');
+    if (array.length === 0)
+      throw new Error('PaneRow must have at least one Pane.');
 
-      if (autoColumnIndex === index - 1) {
-        // The splitter is on the right side of the auto column.
-        setColumnWidthPxs((prev) => {
-          const clone = [...prev];
-          clone[index - 1] += dx;
-          clone[index] -= dx;
-          return clone;
-        });
-      } else if (autoColumnIndex === index + 1) {
-        // The splitter is on the left side of the auto column.
-        setColumnWidthPxs((prev) => {
-          const clone = [...prev];
-          clone[index] += dx;
-          clone[index + 1] -= dx;
-          return clone;
-        });
-      }
-    },
-    [columnWidths],
-  );
+    return array as ReactElement<PaneProps>[];
+  }, [children]);
+
+  // Get the widths of the Pane components.
+  const paneWidths = useMemo<string[]>(() => {
+    return panes.map((p) => p.props.width ?? 'auto');
+  }, [panes]);
 
   // Calculate the column min widths in pixels.
-  const columnMinWidthPxs = useMemo<number[]>(() => {
-    if (!columnMinWidths) return Array(numberOfColumns).fill(0);
-    if (columnMinWidths.length !== numberOfColumns)
-      throw new Error(
-        'The number of columnMinWidths must match the number of columns.',
-      );
-
-    return columnMinWidths.map(sizeToPixels, containerWidth);
-  }, [columnMinWidths, containerWidth, numberOfColumns]);
+  const paneMinWidthPxs = useMemo<number[]>(() => {
+    return panes.map((p) => {
+      const minWidth = p.props.minWidth ?? 0;
+      return sizeToPixels(minWidth, containerWidth);
+    });
+  }, [panes, containerWidth]);
 
   // Calculate the column max widths in pixels.
-  const columnMaxWidthPxs = useMemo<number[]>(() => {
-    if (!columnMaxWidths) return Array(numberOfColumns).fill('100%');
-    if (columnMaxWidths.length !== numberOfColumns)
-      throw new Error(
-        'The number of columnMaxWidths must match the number of columns.',
-      );
-
-    return columnMaxWidths.map(sizeToPixels, containerWidth);
-  }, [columnMaxWidths, containerWidth, numberOfColumns]);
+  const paneMaxWidthPxs = useMemo<number[]>(() => {
+    return panes.map((p) => {
+      const maxWidth = p.props.maxWidth ?? '100%';
+      return sizeToPixels(maxWidth, containerWidth);
+    });
+  }, [panes, containerWidth]);
 
   // Calculate the column widths in pixels.
   useEffect(() => {
     if (containerWidth === 0) return;
 
-    const nonAutoWidths = columnWidths.filter((w) => w !== 'auto');
-    const autoWidths = columnWidths.filter((w) => w === 'auto');
+    const nonAutoWidths = paneWidths.filter((w) => w !== 'auto');
+    const autoWidths = paneWidths.filter((w) => w === 'auto');
 
     if (autoWidths.length > 1) {
-      throw new Error('Only one column can have auto width');
+      throw new Error('Only one Pane can have auto width');
     }
 
     const nonAutoWidthPxs = nonAutoWidths
-      .map(sizeToPixels, containerWidth)
-      .map((n, i) => limit(n, columnMinWidthPxs[i], columnMaxWidthPxs[i]));
+      .map((w) => sizeToPixels(w, containerWidth))
+      .map((n, i) => limit(n, paneMinWidthPxs[i], paneMaxWidthPxs[i]));
 
     const autoWidthPx =
-      containerWidth - nonAutoWidthPxs.reduce((a, b) => a + b);
-    const autoWidthIndex = columnWidths.findIndex((w) => w === 'auto');
+      containerWidth - nonAutoWidthPxs.reduce((a, b) => a + b, 0);
+    const autoWidthIndex = paneWidths.findIndex((w) => w === 'auto');
 
     if (autoWidthIndex !== -1)
       nonAutoWidthPxs.splice(autoWidthIndex, 0, autoWidthPx);
 
-    setColumnWidthPxs(nonAutoWidthPxs);
-  }, [columnWidths, containerWidth, columnMinWidthPxs, columnMaxWidthPxs]);
+    setPaneWidthPxs(nonAutoWidthPxs);
+  }, [containerWidth, paneWidths, paneMinWidthPxs, paneMaxWidthPxs]);
+
+  // Drag handler for the splitters.
+  const onPaneSplitterDrag = useCallback(
+    (index: number) => (dx: number) => {
+      const autoPaneIndex = paneWidths.findIndex((w) => w === 'auto');
+
+      if (autoPaneIndex === index - 1) {
+        // The splitter is on the right side of the auto pane.
+        setPaneWidthPxs((prev) => {
+          const clone = [...prev];
+
+          const totalWidth = clone[index - 1] + clone[index];
+          const rightWidth = limit(
+            clone[index] - dx,
+            paneMinWidthPxs[index],
+            paneMaxWidthPxs[index],
+          );
+
+          clone[index - 1] = totalWidth - rightWidth;
+          clone[index] = rightWidth;
+
+          return clone;
+        });
+      } else if (autoPaneIndex === index + 1) {
+        // The splitter is on the left side of the auto pane.
+        setPaneWidthPxs((prev) => {
+          const clone = [...prev];
+
+          const totalWidth = clone[index] + clone[index + 1];
+          const leftWidth = limit(
+            clone[index] + dx,
+            paneMinWidthPxs[index],
+            paneMaxWidthPxs[index],
+          );
+
+          clone[index] = leftWidth;
+          clone[index + 1] = totalWidth - leftWidth;
+
+          return clone;
+        });
+      }
+    },
+    [paneWidths, paneMinWidthPxs, paneMaxWidthPxs],
+  );
 
   const cols = useMemo(() => {
-    if (columnWidthPxs.length === 0) return null;
-
     let left = 0;
 
-    return Children.map(children, (child, index) => {
-      if (!isValidElement(child)) return null;
-
-      const c = cloneElement(
-        child as ReactElement<Omit<PaneProps, 'id'>>,
+    return panes.map((pane, index) => {
+      const c = createElement(
+        InnerPane,
         {
+          key: index,
           left,
-          width: columnWidthPxs[index],
-          onSplitterDrag: onColumnSplitterDrag(index),
-        } as PaneProps,
+          width: paneWidthPxs[index],
+          splitter: pane.props.splitter,
+          onSplitterDrag: onPaneSplitterDrag(index),
+        },
+        pane.props.children,
       );
 
-      left += columnWidthPxs[index];
+      left += paneWidthPxs[index];
 
       return c;
     });
-  }, [children, columnWidthPxs, onColumnSplitterDrag]);
+  }, [panes, paneWidthPxs, onPaneSplitterDrag]);
 
   return (
     <div
@@ -155,12 +186,12 @@ const PaneRow = ({
       {splitter === 'top' && onSplitterDrag && (
         <RowSplitter offsetTop={0} onDrag={onSplitterDrag} />
       )}
+
       {cols}
+
       {splitter === 'bottom' && onSplitterDrag && (
-        <RowSplitter offsetTop={height} onDrag={onSplitterDrag} />
+        <RowSplitter offsetTop={height!} onDrag={onSplitterDrag} />
       )}
     </div>
   );
 };
-
-export default PaneRow;

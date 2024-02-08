@@ -3,23 +3,32 @@
 import { PropsWithChildren } from 'react';
 import ColumnSplitter from './ColumnSplitter';
 
-export interface PaneProps {
+export interface PaneProps extends PropsWithChildren {
   id: string;
-  index?: number;
-  left?: number;
-  width?: number;
+  width?: string;
+  minWidth?: string;
+  maxWidth?: string;
+  splitter?: 'left' | 'right';
+}
+
+const Pane = ({ children }: PaneProps) => children;
+
+export default Pane;
+
+export interface InnerPaneProps {
+  left: number;
+  width: number;
   splitter?: 'left' | 'right';
   onSplitterDrag?: (dx: number) => void;
 }
 
-const Pane = ({
-  id,
-  left = 0,
-  width = 0,
+export const InnerPane = ({
+  left,
+  width,
   splitter,
   onSplitterDrag,
   children,
-}: PropsWithChildren<PaneProps>) => {
+}: PropsWithChildren<InnerPaneProps>) => {
   return (
     <div
       className="pane absolute h-full bg-zinc-900 border-r border-zinc-800 last-of-type:border-r-0"
@@ -31,12 +40,12 @@ const Pane = ({
       {splitter === 'left' && onSplitterDrag && (
         <ColumnSplitter offsetLeft={0} onDrag={onSplitterDrag} />
       )}
+
       {children}
+
       {splitter === 'right' && onSplitterDrag && (
         <ColumnSplitter offsetLeft={width} onDrag={onSplitterDrag} />
       )}
     </div>
   );
 };
-
-export default Pane;
